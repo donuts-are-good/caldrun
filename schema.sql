@@ -1,0 +1,34 @@
+CREATE TABLE IF NOT EXISTS Users (
+		ID TEXT PRIMARY KEY,
+		Token TEXT,
+		Username TEXT
+	);
+
+	CREATE TABLE IF NOT EXISTS Calendars (
+		ID TEXT PRIMARY KEY,
+		Name TEXT
+	);
+
+	CREATE TABLE IF NOT EXISTS CalendarUsers (
+		CalendarID TEXT,
+		UserID TEXT,
+		Permission TEXT,
+		FOREIGN KEY(CalendarID) REFERENCES Calendars(ID),
+		FOREIGN KEY(UserID) REFERENCES Users(ID)
+	);
+
+	CREATE TABLE IF NOT EXISTS Events (
+		ID TEXT PRIMARY KEY,
+		Name TEXT,
+		Description TEXT,
+		Timestamp TEXT,
+		UserID TEXT,
+		FOREIGN KEY(UserID) REFERENCES Users(ID)
+	);
+
+	CREATE TABLE IF NOT EXISTS EventCalendars (
+		EventID TEXT,
+		CalendarID TEXT,
+		FOREIGN KEY(EventID) REFERENCES Events(ID),
+		FOREIGN KEY(CalendarID) REFERENCES Calendars(ID)
+	);
