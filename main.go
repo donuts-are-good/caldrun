@@ -73,7 +73,6 @@ func prompt(db *sql.DB) {
 			scanner.Scan()
 			username := scanner.Text()
 
-			// Check for duplicate usernames
 			var count int
 			err := db.QueryRow("SELECT COUNT(*) FROM Users WHERE Username = ?", username).Scan(&count)
 			if err != nil {
@@ -84,18 +83,15 @@ func prompt(db *sql.DB) {
 				continue
 			}
 
-			// Generate token
 			h := sha256.New()
 			h.Write([]byte(username))
 			token := hex.EncodeToString(h.Sum(nil))
 
-			// Generate user ID
 			id, err := generateID()
 			if err != nil {
 				log.Fatal(err)
 			}
 
-			// Insert new user into the database
 			_, err = db.Exec("INSERT INTO Users (ID, Token, Username) VALUES (?, ?, ?)", id, token, username)
 			if err != nil {
 				log.Fatal(err)
@@ -130,6 +126,8 @@ func handleHealth(db *sql.DB, w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	w.Header().Set("Cache-Control", "public, max-age=300") // Cache for 5 minutes (adjust the max-age value as needed)
+
 	healthCheck, err := getHealthCheck(db)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -139,22 +137,20 @@ func handleHealth(db *sql.DB, w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(healthCheck)
 }
+
 func getHealthCheck(db *sql.DB) (HealthCheck, error) {
 	var users, calendars, events int
 
-	// Query for the number of users
 	err := db.QueryRow("SELECT COUNT(*) FROM Users").Scan(&users)
 	if err != nil {
 		return HealthCheck{}, err
 	}
 
-	// Query for the number of calendars
 	err = db.QueryRow("SELECT COUNT(*) FROM Calendars").Scan(&calendars)
 	if err != nil {
 		return HealthCheck{}, err
 	}
 
-	// Query for the number of events
 	err = db.QueryRow("SELECT COUNT(*) FROM Events").Scan(&events)
 	if err != nil {
 		return HealthCheck{}, err
@@ -167,6 +163,7 @@ func getHealthCheck(db *sql.DB) (HealthCheck, error) {
 		Time:      time.Now(),
 	}, nil
 }
+
 func AuthMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		token := r.Header.Get("Authorization")
@@ -187,7 +184,6 @@ func AuthMiddleware(next http.Handler) http.Handler {
 	})
 }
 
-// HealthCheck represents a health check response
 type HealthCheck struct {
 	Users     int       `json:"users"`
 	Calendars int       `json:"calendars"`
