@@ -66,7 +66,7 @@ func authMiddleware(next http.HandlerFunc) http.HandlerFunc {
 				fmt.Printf("%s: %s\n", name, value)
 			}
 		}
-		token := r.Header.Get("User-Token") // This should match with the header name you're sending in the curl command
+		token := r.Header.Get("User-Token")
 		log.Printf("Received token: '%v'", token)
 		user, err := getUserForToken(token)
 		if err != nil {
@@ -110,7 +110,6 @@ func handlerEvents(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// New User Handler
 func handlerUsers(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case "POST":
@@ -120,7 +119,6 @@ func handlerUsers(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// User Registration Handler
 func handlerUsersPOST(w http.ResponseWriter, r *http.Request) {
 	decoder := json.NewDecoder(r.Body)
 	var newUser struct {
@@ -140,13 +138,10 @@ func handlerUsersPOST(w http.ResponseWriter, r *http.Request) {
 }
 
 func handlerCalendarsGET(w http.ResponseWriter, r *http.Request) {
-	// Fetch user context from the authMiddleware
 	user := r.Context().Value("user").(User)
 
-	// Fetch the calendars for the user
 	calendars := dbGetCalendarsForToken(db, user)
 
-	// Convert the result to JSON
 	err := json.NewEncoder(w).Encode(calendars)
 	if err != nil {
 		http.Error(w, "Failed to encode calendars to JSON", http.StatusInternalServerError)
@@ -155,10 +150,8 @@ func handlerCalendarsGET(w http.ResponseWriter, r *http.Request) {
 }
 
 func handlerCalendarsPOST(w http.ResponseWriter, r *http.Request) {
-	// Fetch user context from the authMiddleware
 	user := r.Context().Value("user").(User)
 
-	// Decode the request body to get the new calendar's name
 	var newCalendar struct {
 		Name string `json:"name"`
 	}
@@ -168,14 +161,12 @@ func handlerCalendarsPOST(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Create a new calendar for the user
 	calendar, err := dbCreateCalendar(db, user, newCalendar.Name)
 	if err != nil {
 		http.Error(w, "Error creating calendar", http.StatusInternalServerError)
 		return
 	}
 
-	// Convert the result to JSON
 	err = json.NewEncoder(w).Encode(calendar)
 	if err != nil {
 		http.Error(w, "Failed to encode calendar to JSON", http.StatusInternalServerError)
@@ -183,15 +174,11 @@ func handlerCalendarsPOST(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// Event GET Handler
 func handlerEventsGET(w http.ResponseWriter, r *http.Request) {
-	// Fetch user context from the authMiddleware
 	user := r.Context().Value("user").(User)
 
-	// Fetch the events for the user
 	events := dbGetEventsForToken(db, user)
 
-	// Convert the result to JSON
 	err := json.NewEncoder(w).Encode(events)
 	if err != nil {
 		http.Error(w, "Failed to encode events to JSON", http.StatusInternalServerError)
@@ -199,13 +186,9 @@ func handlerEventsGET(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// Event POST Handler
-
 func handlerEventsPOST(w http.ResponseWriter, r *http.Request) {
-	// Fetch user context from the authMiddleware
 	user := r.Context().Value("user").(User)
 
-	// Decode the request body to get the new event's data
 	var newEvent struct {
 		Name           string   `json:"name"`
 		Description    string   `json:"description"`
@@ -218,14 +201,12 @@ func handlerEventsPOST(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Create a new event for the user
 	event, err := dbCreateEvent(db, user, newEvent.Name, newEvent.Description, newEvent.Timestamp, newEvent.CalendarLabels)
 	if err != nil {
 		http.Error(w, "Error creating event", http.StatusInternalServerError)
 		return
 	}
 
-	// Convert the result to JSON
 	err = json.NewEncoder(w).Encode(event)
 	if err != nil {
 		http.Error(w, "Failed to encode event to JSON", http.StatusInternalServerError)
@@ -234,7 +215,6 @@ func handlerEventsPOST(w http.ResponseWriter, r *http.Request) {
 }
 
 func dbCreateUser(db *sql.DB, username string) (User, error) {
-	// Check if username already exists
 	var exists bool
 	err := db.QueryRow("SELECT EXISTS(SELECT 1 FROM users WHERE username=?)", username).Scan(&exists)
 	if err != nil {
@@ -316,7 +296,6 @@ func dbGetCalendarsForToken(db *sql.DB, user User) []Calendar {
 	return calendars
 }
 
-// Function to retrieve events for a specific user from the database
 func dbGetEventsForToken(db *sql.DB, user User) []Event {
 	events := []Event{}
 	rows, err := db.Query("SELECT * FROM events WHERE owner_label = ?", user.Label)
@@ -336,16 +315,13 @@ func dbGetEventsForToken(db *sql.DB, user User) []Event {
 	return events
 }
 
-// Function to create a new event in the database
 func dbCreateEvent(db *sql.DB, user User, name string, description string, timestamp string, calendarLabels []string) (Event, error) {
 	log.Println("Starting dbCreateEvent")
 	log.Printf("User: %v, Name: %s, Description: %s, Timestamp: %s, CalendarLabels: %v", user, name, description, timestamp, calendarLabels)
 
-	// Implement unique label generation logic for the new event
 	newLabel, _ := generateLabel()
 	log.Printf("Generated new label: %s", newLabel)
 
-	// By default, the owner is the only person associated with the event
 	_, err := db.Exec(
 		"INSERT INTO events (label, owner_label, name, description, timestamp, calendar_labels) VALUES (?, ?, ?, ?, ?, ?)",
 		newLabel, user.Label, name, description, timestamp, strings.Join(calendarLabels, ","),
@@ -369,10 +345,8 @@ func dbCreateEvent(db *sql.DB, user User, name string, description string, times
 }
 
 func dbCreateCalendar(db *sql.DB, user User, name string) (Calendar, error) {
-	// Implement unique label generation logic for the new calendar
 	newLabel, _ := generateLabel()
 
-	// By default, set the owner as the only viewer and modifier
 	viewUsers := user.Label
 	modUsers := user.Label
 
