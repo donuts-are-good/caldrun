@@ -13,6 +13,8 @@ import (
 	"os"
 	"strings"
 
+	"github.com/gorilla/handlers"
+	"github.com/gorilla/mux"
 	_ "github.com/mattn/go-sqlite3"
 )
 
@@ -21,7 +23,7 @@ const charset = "abcdefghjkmnpqrstuvwxyz23456789"
 var db *sql.DB
 
 func main() {
-	dbinit()
+	initDB()
 	var err error
 	db, err = dbConnect()
 	if err != nil {
@@ -29,11 +31,20 @@ func main() {
 	}
 	defer db.Close()
 
-	http.HandleFunc("/users", handlerUsers)
-	http.Handle("/calendars", authMiddleware(handlerCalendars))
-	http.Handle("/events", authMiddleware(handlerEvents))
-	log.Fatal(http.ListenAndServe(":8080", nil))
+	r := mux.NewRouter()
 
+	r.HandleFunc("/users", handlerUsers).Methods("POST")
+
+	r.Handle("/calendars", authMiddlewareView(handlerCalendars)).Methods("GET")
+	r.Handle("/calendars", authMiddlewareEdit(handlerCalendars)).Methods("POST")
+	r.Handle("/events", authMiddlewareView(handlerEvents)).Methods("GET")
+	r.Handle("/events", authMiddlewareEdit(handlerEvents)).Methods("POST")
+
+	corsOrigins := handlers.AllowedOrigins([]string{"*"})
+	corsMethods := handlers.AllowedMethods([]string{"GET", "POST", "OPTIONS"})
+	corsHeaders := handlers.AllowedHeaders([]string{"Content-Type", "User-Token"})
+
+	log.Fatal(http.ListenAndServe(":8080", handlers.CORS(corsOrigins, corsMethods, corsHeaders)(r)))
 }
 
 func dbConnect() (*sql.DB, error) {
@@ -44,7 +55,7 @@ func dbConnect() (*sql.DB, error) {
 	return db, err
 }
 
-func dbinit() {
+func initDB() {
 	content, err := os.ReadFile("schema.sql")
 	if err != nil {
 		log.Fatal(err)
@@ -59,43 +70,57 @@ func dbinit() {
 	}
 }
 
-func authMiddleware(next http.HandlerFunc) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		for name, values := range r.Header {
-			for _, value := range values {
-				fmt.Printf("%s: %s\n", name, value)
-			}
-		}
+func authMiddlewareView(next http.HandlerFunc) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+
 		token := r.Header.Get("User-Token")
-		log.Printf("Received token: '%v'", token)
-		user, err := getUserForToken(token)
+		user, err := dbGetUserForToken(token)
 		if err != nil {
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
 			return
 		}
+
+		// Extract calendarLabel from request parameters, or some other way depending on your API design
+		calendarLabel := r.URL.Query().Get("calendarLabel")
+
+		if !isOwnerOrViewUser(db, user, calendarLabel) {
+			http.Error(w, "Forbidden", http.StatusForbidden)
+			return
+		}
+
 		ctx := context.WithValue(r.Context(), "user", user)
 		next.ServeHTTP(w, r.WithContext(ctx))
-	}
+	})
 }
 
-func getUserForToken(token string) (User, error) {
-	var user User
-	err := db.QueryRow("SELECT * FROM users WHERE token = ?", token).Scan(&user.Label, &user.Token, &user.Username)
-	if err != nil {
-		log.Printf("Error fetching user with token: %v", err)
-		return User{}, err
-	}
-	return user, nil
-}
+func authMiddlewareEdit(next http.HandlerFunc) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 
+		token := r.Header.Get("User-Token")
+		user, err := dbGetUserForToken(token)
+		if err != nil {
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			return
+		}
+
+		// Extract calendarLabel from request parameters, or some other way depending on your API design
+		calendarLabel := r.URL.Query().Get("calendarLabel")
+
+		if !isOwnerOrModUser(db, user, calendarLabel) {
+			http.Error(w, "Forbidden", http.StatusForbidden)
+			return
+		}
+
+		ctx := context.WithValue(r.Context(), "user", user)
+		next.ServeHTTP(w, r.WithContext(ctx))
+	})
+}
 func handlerCalendars(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case "GET":
 		handlerCalendarsGET(w, r)
 	case "POST":
 		handlerCalendarsPOST(w, r)
-	default:
-		http.Error(w, "Invalid request method.", http.StatusNotImplemented)
 	}
 }
 
@@ -105,8 +130,6 @@ func handlerEvents(w http.ResponseWriter, r *http.Request) {
 		handlerEventsGET(w, r)
 	case "POST":
 		handlerEventsPOST(w, r)
-	default:
-		http.Error(w, "Invalid request method.", http.StatusNotImplemented)
 	}
 }
 
@@ -114,8 +137,6 @@ func handlerUsers(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case "POST":
 		handlerUsersPOST(w, r)
-	default:
-		http.Error(w, "Invalid request method.", http.StatusNotImplemented)
 	}
 }
 
@@ -214,28 +235,24 @@ func handlerEventsPOST(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func dbCreateUser(db *sql.DB, username string) (User, error) {
-	var exists bool
-	err := db.QueryRow("SELECT EXISTS(SELECT 1 FROM users WHERE username=?)", username).Scan(&exists)
+func isOwnerOrModUser(db *sql.DB, user User, calendarLabel string) bool {
+	var result bool
+	err := db.QueryRow("SELECT EXISTS(SELECT 1 FROM calendars WHERE label=? AND (owner_label=? OR INSTR(mod_users, ?)>0))", calendarLabel, user.Label, user.Label).Scan(&result)
 	if err != nil {
-		return User{}, err
+		log.Printf("Error checking owner or mod user permissions: %v", err)
+		return false
 	}
-	if exists {
-		return User{}, errors.New("username already exists")
-	}
+	return result
+}
 
-	thisLabel, _ := generateLabel()
-	thisToken, _ := generateToken()
-	user := User{
-		Label:    thisLabel,
-		Token:    thisToken,
-		Username: username,
-	}
-	_, err = db.Exec("INSERT INTO users (label, token, username) VALUES (?, ?, ?)", user.Label, user.Token, user.Username)
+func isOwnerOrViewUser(db *sql.DB, user User, calendarLabel string) bool {
+	var result bool
+	err := db.QueryRow("SELECT EXISTS(SELECT 1 FROM calendars WHERE label=? AND (owner_label=? OR INSTR(view_users, ?)>0))", calendarLabel, user.Label, user.Label).Scan(&result)
 	if err != nil {
-		return User{}, err
+		log.Printf("Error checking owner or view user permissions: %v", err)
+		return false
 	}
-	return user, nil
+	return result
 }
 
 func generateString(size int) (string, error) {
@@ -265,6 +282,39 @@ func generateToken() (string, error) {
 	return output, nil
 }
 
+func dbCreateUser(db *sql.DB, username string) (User, error) {
+	var exists bool
+	err := db.QueryRow("SELECT EXISTS(SELECT 1 FROM users WHERE username=?)", username).Scan(&exists)
+	if err != nil {
+		return User{}, err
+	}
+	if exists {
+		return User{}, errors.New("username already exists")
+	}
+
+	thisLabel, _ := generateLabel()
+	thisToken, _ := generateToken()
+	user := User{
+		Label:    thisLabel,
+		Token:    thisToken,
+		Username: username,
+	}
+	_, err = db.Exec("INSERT INTO users (label, token, username) VALUES (?, ?, ?)", user.Label, user.Token, user.Username)
+	if err != nil {
+		return User{}, err
+	}
+	return user, nil
+}
+
+func dbGetUserForToken(token string) (User, error) {
+	var user User
+	err := db.QueryRow("SELECT * FROM users WHERE token = ?", token).Scan(&user.Label, &user.Token, &user.Username)
+	if err != nil {
+		log.Printf("Error fetching user with token: %v", err)
+		return User{}, err
+	}
+	return user, nil
+}
 func dbGetCalendarsForToken(db *sql.DB, user User) []Calendar {
 	calendars := []Calendar{}
 	rows, err := db.Query("SELECT * FROM calendars WHERE owner_label = ?", user.Label)
@@ -316,11 +366,8 @@ func dbGetEventsForToken(db *sql.DB, user User) []Event {
 }
 
 func dbCreateEvent(db *sql.DB, user User, name string, description string, timestamp string, calendarLabels []string) (Event, error) {
-	log.Println("Starting dbCreateEvent")
-	log.Printf("User: %v, Name: %s, Description: %s, Timestamp: %s, CalendarLabels: %v", user, name, description, timestamp, calendarLabels)
 
 	newLabel, _ := generateLabel()
-	log.Printf("Generated new label: %s", newLabel)
 
 	_, err := db.Exec(
 		"INSERT INTO events (label, owner_label, name, description, timestamp, calendar_labels) VALUES (?, ?, ?, ?, ?, ?)",
@@ -331,8 +378,6 @@ func dbCreateEvent(db *sql.DB, user User, name string, description string, times
 		log.Printf("Error inserting new event: %v", err)
 		return Event{}, fmt.Errorf("error inserting new event: %w", err)
 	}
-
-	log.Println("Successfully created new event")
 
 	return Event{
 		Label:          newLabel,
