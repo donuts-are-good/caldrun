@@ -1,22 +1,31 @@
 package main
 
-type User struct {
-	ID       string `json:"id"`       // hash
-	Token    string `json:"token"`    // access token credential, hash
-	Username string `json:"username"` // human readable
-}
+import "time"
 
-type Event struct {
-	ID          string   `json:"id"`           // hash
-	Name        string   `json:"name"`         // name of this event "soccer practice"
-	Description string   `json:"description"`  // description "tonight we are practicing soccer at smith field"
-	Timestamp   string   `json:"timestamp"`    // datetime of this event, parse this to time.Time
-	CalendarIDs []string `json:"calendar_ids"` // Calendar.id's this event belongs to
-}
+// type User struct {
+// 	Label    string `json:"label,omitempty"`
+// 	Token    string `json:"token,omitempty"`
+// 	Username string `json:"username,omitempty"`
+// }
 
-type Calendar struct {
-	ID        string   `json:"id"`         // hash
-	Name      string   `json:"name"`       // name of this calendar "mom's calendar"
-	ViewUsers []string `json:"view_users"` // user.id's that can see this calendar
-	ModUsers  []string `json:"mod_users"`  // user.id's that can add events to this calendar
+// type Calendar struct {
+// 	Label      string   `json:"label,omitempty"`
+// 	OwnerLabel string   `json:"owner_label,omitempty"`
+// 	Name       string   `json:"name,omitempty"`
+// 	ViewUsers  []string `json:"view_users,omitempty"`
+// 	ModUsers   []string `json:"mod_users,omitempty"`
+// }
+// type Event struct {
+// 	Label          string   `json:"label,omitempty"`
+// 	Name           string   `json:"name,omitempty"`
+// 	Description    string   `json:"description,omitempty"`
+// 	Timestamp      string   `json:"timestamp,omitempty"`
+// 	CalendarLabels []string `json:"calendar_labels,omitempty"`
+// }
+
+type HealthCheck struct {
+	Users     int       `json:"users,omitempty"`
+	Calendars int       `json:"calendars,omitempty"`
+	Events    int       `json:"events,omitempty"`
+	Time      time.Time `json:"time,omitempty"`
 }
