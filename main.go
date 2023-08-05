@@ -44,7 +44,7 @@ func main() {
 	corsMethods := handlers.AllowedMethods([]string{"GET", "POST", "OPTIONS"})
 	corsHeaders := handlers.AllowedHeaders([]string{"Content-Type", "User-Token"})
 
-	log.Fatal(http.ListenAndServe(":8080", handlers.CORS(corsOrigins, corsMethods, corsHeaders)(r)))
+	log.Fatal(http.ListenAndServe(":9000", handlers.CORS(corsOrigins, corsMethods, corsHeaders)(r)))
 }
 
 func dbConnect() (*sql.DB, error) {
