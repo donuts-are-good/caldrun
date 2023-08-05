@@ -1,6 +1,16 @@
 # caldrun
 
-try it out on [http://caldrun.com](http://caldrun.com)
+try it out
+
+```
+# signup and get an api token
+curl --request POST \
+  --url 'http://caldrun.com/users?=' \
+  --header 'Content-Type: application/json' \
+  --data '{
+	"username": "change-this-username"
+}'
+```
 
 
 ## usage
