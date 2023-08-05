@@ -1,6 +1,6 @@
 # caldrun
 
-try it out on [caldrun.com](http://caldrun.com)
+try it out on [http://caldrun.com](http://caldrun.com)
 
 
 ## usage
