@@ -1,6 +1,6 @@
 # caldrun
 
-try it out
+try it out with a snippet like this below to get your api token. you'll want to change the username to something unique.
 
 ```
 # signup and get an api token
