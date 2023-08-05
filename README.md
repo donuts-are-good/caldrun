@@ -1,5 +1,8 @@
 # caldrun
 
+try it out on caldrun.com 
+
+
 ## usage
 
 This http json API allows you to create and manage users, calendars and events.
