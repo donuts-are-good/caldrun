@@ -81,12 +81,12 @@ func authMiddlewareView(next http.HandlerFunc) http.Handler {
 		}
 
 		// Extract calendarLabel from request parameters, or some other way depending on your API design
-		calendarLabel := r.URL.Query().Get("calendarLabel")
+		// calendarLabel := r.URL.Query().Get("calendarLabel")
 
-		if !isOwnerOrViewUser(db, user, calendarLabel) {
-			http.Error(w, "Forbidden", http.StatusForbidden)
-			return
-		}
+		// if !isOwnerOrViewUser(db, user, calendarLabel) {
+		// 	http.Error(w, "Forbidden", http.StatusForbidden)
+		// 	return
+		// }
 
 		ctx := context.WithValue(r.Context(), "user", user)
 		next.ServeHTTP(w, r.WithContext(ctx))
@@ -104,12 +104,12 @@ func authMiddlewareEdit(next http.HandlerFunc) http.Handler {
 		}
 
 		// Extract calendarLabel from request parameters, or some other way depending on your API design
-		calendarLabel := r.URL.Query().Get("calendarLabel")
+		// calendarLabel := r.URL.Query().Get("calendarLabel")
 
-		if !isOwnerOrModUser(db, user, calendarLabel) {
-			http.Error(w, "Forbidden", http.StatusForbidden)
-			return
-		}
+		// if !isOwnerOrModUser(db, user, calendarLabel) {
+		// 	http.Error(w, "Forbidden", http.StatusForbidden)
+		// 	return
+		// }
 
 		ctx := context.WithValue(r.Context(), "user", user)
 		next.ServeHTTP(w, r.WithContext(ctx))
